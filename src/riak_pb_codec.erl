@@ -306,7 +306,8 @@ decode_bucket_props(#rpbbucketprops{n_val=N,
                                     backend=Backend,
                                     search=Search,
                                     repl=Repl,
-                                    yz_index=Index
+                                    yz_index=Index,
+                                    datatype=Datatype
                                    }) ->
     %% Extract numerical properties
     [ {P,V} || {P,V} <- [ {n_val, N}, {old_vclock, Old}, {young_vclock, Young},
@@ -329,8 +330,9 @@ decode_bucket_props(#rpbbucketprops{n_val=N,
                                                               {linkfun, Link}],
                                              MF /= undefined ] ++
 
-    %% Extract backend
-    [ {backend, Backend} || is_binary(Backend) ] ++
+    %% Extract backend and Yokozuna index
+    [ {P,V}  || {P,V} <- [{backend, Backend}, {yz_index, Index}],
+                is_binary(V) ] ++
 
     %% Extract quora
     [ {QProp, riak_pb_kv_codec:decode_quorum(Q)} ||
@@ -340,8 +342,8 @@ decode_bucket_props(#rpbbucketprops{n_val=N,
     %% Extract repl prop
     [ {repl, decode_repl(Repl)} || Repl /= undefined ] ++
 
-    %% Yokozuna index
-    [ {yz_index, Index} || is_binary(Index) ].
+    %% Extract datatype prop
+    [ {datatype, safe_to_atom(Datatype)} || is_binary(Datatype) ].
 
 
 
@@ -403,6 +405,8 @@ encode_bucket_props([{repl, Atom}|Rest], Pb) ->
     encode_bucket_props(Rest, Pb#rpbbucketprops{repl = encode_repl(Atom)});
 encode_bucket_props([{yz_index, B}|Rest], Pb) ->
     encode_bucket_props(Rest, Pb#rpbbucketprops{yz_index = to_binary(B)});
+encode_bucket_props([{datatype, D}|Rest], Pb) ->
+    encode_bucket_props(Rest, Pb#rpbbucketprops{datatype = to_binary(D)});
 encode_bucket_props([_Ignore|Rest], Pb) ->
     %% Ignore any properties not explicitly part of the PB message
     encode_bucket_props(Rest, Pb).
@@ -476,3 +480,12 @@ decode_repl('TRUE') -> true;
 decode_repl('FALSE') -> false;
 decode_repl('REALTIME') -> realtime;
 decode_repl('FULLSYNC') -> fullsync.
+
+safe_to_atom(Binary) when is_binary(Binary) ->
+    try
+        binary_to_existing_atom(Binary, latin1)
+    catch
+        error:badarg ->
+            error_logger:warning_msg("Creating new atom from protobuffs message! ~p", [Binary]),
+            binary_to_atom(Binary, latin1)
+    end.

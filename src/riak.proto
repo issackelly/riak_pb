@@ -155,7 +155,11 @@ message RpbBucketProps {
     }
     optional RpbReplMode repl = 24;
 
+    // Yokozuna index
     optional bytes yz_index = 25;
+
+    // KV Datatypes
+    optional bytes datatype = 26;
 }
 
 // Authentication request
